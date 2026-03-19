@@ -68,8 +68,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: AppRoutes.telemetry,
           name: 'telemetry',
-          pageBuilder: (context, state) =>
-              _fadePage(state, const TelemetryScreen()),
+          pageBuilder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return _fadePage(state, TelemetryScreen(params: extra));
+          },
         ),
         GoRoute(
           path: AppRoutes.predictions,
