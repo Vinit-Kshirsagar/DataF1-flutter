@@ -1,0 +1,19 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.iml
+
+# Environment — NEVER commit this
+.env
+
+# OS
+.DS_Store
+
+# iOS/Android generated
+ios/Pods/
+ios/.symlinks/
+android/.gradle/
+android/captures/
