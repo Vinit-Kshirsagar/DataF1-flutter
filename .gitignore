@@ -17,3 +17,8 @@ ios/Pods/
 ios/.symlinks/
 android/.gradle/
 android/captures/
+.idea/
+.metadata
+linux/
+macos/
+windows/
