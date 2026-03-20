@@ -206,8 +206,8 @@ Consistent error strings used across all screens:
 |---|---|---|
 | 0 | App scaffold — theme, routing, BLoC structure | ✅ Complete |
 | 1 | Authentication — login, register, JWT, token refresh | ✅ Complete |
-| 2 | Home screen + race selection flow | 🔄 In progress |
-| 3 | Telemetry graph + AI insight summary | ⏳ Pending |
+| 2 | Home screen + race selection flow | ✅ Complete |
+| 3 | Telemetry graph + AI insight summary | ✅ Complete |
 | 4 | Race results + driver comparison | ⏳ Pending |
 | 5 | Race predictions | ⏳ Pending |
 | 6 | Profile, saved preferences + polish | ⏳ Pending |
