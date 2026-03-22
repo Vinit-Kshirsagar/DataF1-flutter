@@ -13,7 +13,6 @@ import '../../home/data/home_models.dart';
 
 class TelemetryScreen extends StatefulWidget {
   final Map<String, dynamic>? params;
-
   const TelemetryScreen({super.key, this.params});
 
   @override
@@ -28,7 +27,6 @@ class _TelemetryScreenState extends State<TelemetryScreen> {
   void initState() {
     super.initState();
     _bloc = TelemetryBloc();
-
     final p = widget.params;
     if (p != null) {
       final race = p['race'] as RaceModel?;
@@ -36,7 +34,6 @@ class _TelemetryScreenState extends State<TelemetryScreen> {
       final driver = p['driver'] as DriverModel?;
       final metric = p['metric'] as MetricModel?;
       final year = p['year'] as int? ?? DateTime.now().year;
-
       if (race != null && session != null && driver != null && metric != null) {
         _activeMetric = metric.key;
         _bloc.add(LoadTelemetry(
@@ -89,10 +86,7 @@ class _TelemetryScreenState extends State<TelemetryScreen> {
   }
 
   PreferredSizeWidget _buildAppBar(
-    DriverModel? driver,
-    RaceModel? race,
-    SessionModel? session,
-  ) {
+      DriverModel? driver, RaceModel? race, SessionModel? session) {
     return AppBar(
       backgroundColor: AppColors.background,
       leading: IconButton(
@@ -104,21 +98,16 @@ class _TelemetryScreenState extends State<TelemetryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (driver != null)
-            Text(
-              driver.fullName,
-              style: GoogleFonts.barlowCondensed(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                fontStyle: FontStyle.italic,
-                color: Colors.white,
-              ),
-            ),
+            Text(driver.fullName,
+                style: GoogleFonts.barlowCondensed(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.white)),
           if (race != null && session != null)
-            Text(
-              '${race.name} · ${session.name}',
-              style: GoogleFonts.barlow(
-                  fontSize: 11, color: AppColors.textSecondary),
-            ),
+            Text('${race.name} · ${session.name}',
+                style: GoogleFonts.barlow(
+                    fontSize: 11, color: AppColors.textSecondary)),
         ],
       ),
       bottom: const PreferredSize(
@@ -129,12 +118,8 @@ class _TelemetryScreenState extends State<TelemetryScreen> {
   }
 
   Widget _buildBody(BuildContext context, TelemetryState state) {
-    if (state is TelemetryLoading) {
-      return const GraphLoadingSkeleton();
-    }
-    if (state is TelemetryEmpty) {
-      return _EmptyState(message: state.message);
-    }
+    if (state is TelemetryLoading) return const GraphLoadingSkeleton();
+    if (state is TelemetryEmpty) return _EmptyState(message: state.message);
     if (state is TelemetryError) {
       return _ErrorState(
         message: state.message,
@@ -159,7 +144,10 @@ class _TelemetryScreenState extends State<TelemetryScreen> {
       );
     }
     if (state is TelemetryLoaded) {
-      return _TelemetryContent(data: state.data);
+      return _TelemetryContent(
+        data: state.data,
+        onLapChanged: (lap) => _bloc.add(ChangeTelemetryLap(lapNumber: lap)),
+      );
     }
     return const SizedBox.shrink();
   }
@@ -202,17 +190,13 @@ class _MetricChipRow extends StatelessWidget {
                 color: isActive ? AppColors.primary : AppColors.surface,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isActive ? AppColors.primary : AppColors.cardBorder,
-                ),
+                    color: isActive ? AppColors.primary : AppColors.cardBorder),
               ),
-              child: Text(
-                m['label']!,
-                style: GoogleFonts.barlow(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isActive ? Colors.white : AppColors.textSecondary,
-                ),
-              ),
+              child: Text(m['label']!,
+                  style: GoogleFonts.barlow(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isActive ? Colors.white : AppColors.textSecondary)),
             ),
           );
         },
@@ -221,12 +205,16 @@ class _MetricChipRow extends StatelessWidget {
   }
 }
 
-// ── Main content ──────────────────────────────────────────────────────────────
+// ── Main telemetry content ────────────────────────────────────────────────────
 
 class _TelemetryContent extends StatelessWidget {
   final TelemetryData data;
+  final void Function(int lapNumber) onLapChanged;
 
-  const _TelemetryContent({required this.data});
+  const _TelemetryContent({required this.data, required this.onLapChanged});
+
+  bool get _isLapBased =>
+      data.metric == 'lap_time' || data.metric == 'top_speed';
 
   @override
   Widget build(BuildContext context) {
@@ -235,24 +223,18 @@ class _TelemetryContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _StatsRow(data: data),
+          _StatsRow(data: data, onLapTap: _isLapBased ? null : () => _showLapPicker(context)),
           const SizedBox(height: 16),
           _TelemetryGraph(data: data),
           const SizedBox(height: 6),
-          // Scroll hint
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.swipe, size: 12, color: AppColors.textMuted),
               const SizedBox(width: 4),
-              Text(
-                'SWIPE TO EXPLORE',
-                style: GoogleFonts.barlow(
-                  fontSize: 9,
-                  color: AppColors.textMuted,
-                  letterSpacing: 1.2,
-                ),
-              ),
+              Text('SWIPE TO EXPLORE',
+                  style: GoogleFonts.barlow(
+                      fontSize: 9, color: AppColors.textMuted, letterSpacing: 1.2)),
             ],
           ),
           const SizedBox(height: 16),
@@ -263,18 +245,169 @@ class _TelemetryContent extends StatelessWidget {
       ),
     );
   }
+
+  void _showLapPicker(BuildContext context) {
+    if (data.laps.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _LapPickerSheet(
+        laps: data.laps,
+        selectedLap: data.selectedLap,
+        onLapSelected: (lap) {
+          Navigator.pop(context);
+          onLapChanged(lap);
+        },
+      ),
+    );
+  }
 }
+
+// ── Lap picker bottom sheet ───────────────────────────────────────────────────
+
+class _LapPickerSheet extends StatelessWidget {
+  final List<LapInfo> laps;
+  final int selectedLap;
+  final void Function(int) onLapSelected;
+
+  const _LapPickerSheet({
+    required this.laps,
+    required this.selectedLap,
+    required this.onLapSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.55,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textMuted,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Row(
+              children: [
+                Text('SELECT LAP',
+                    style: GoogleFonts.barlow(
+                        fontSize: 11, fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5, color: AppColors.textSecondary)),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => onLapSelected(0),
+                  child: Text('FASTEST',
+                      style: GoogleFonts.barlow(
+                          fontSize: 11, fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2, color: AppColors.primary)),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.primaryBorder),
+          Expanded(
+            child: ListView.builder(
+              itemCount: laps.length,
+              itemBuilder: (context, i) {
+                final lap = laps[i];
+                final isSelected = selectedLap == lap.lapNumber ||
+                    (selectedLap == 0 && lap.isFastest);
+                return GestureDetector(
+                  onTap: () => onLapSelected(lap.lapNumber),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primaryDim
+                          : Colors.transparent,
+                      border: const Border(
+                        bottom: BorderSide(
+                            color: AppColors.cardBorder, width: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 56,
+                          child: Text('LAP ${lap.lapNumber}',
+                              style: GoogleFonts.barlowCondensed(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : AppColors.textPrimary)),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(lap.formattedTime,
+                            style: GoogleFonts.barlow(
+                                fontSize: 14,
+                                color: lap.isFastest
+                                    ? AppColors.success
+                                    : AppColors.textSecondary,
+                                fontWeight: lap.isFastest
+                                    ? FontWeight.w600
+                                    : FontWeight.w400)),
+                        const Spacer(),
+                        if (lap.isFastest)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text('FASTEST',
+                                style: GoogleFonts.barlow(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.2,
+                                    color: AppColors.success)),
+                          ),
+                        if (isSelected && !lap.isFastest)
+                          const Icon(Icons.check,
+                              size: 16, color: AppColors.primary),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          SizedBox(height: bottomPad + 8),
+        ],
+      ),
+    );
+  }
+}
+
 
 // ── Stats row ─────────────────────────────────────────────────────────────────
 
 class _StatsRow extends StatelessWidget {
   final TelemetryData data;
+  final VoidCallback? onLapTap;
 
-  const _StatsRow({required this.data});
+  const _StatsRow({required this.data, this.onLapTap});
 
   @override
   Widget build(BuildContext context) {
     final teamColor = AppColors.teamColor(data.team);
+    final lapLabel = data.selectedLap == 0
+        ? 'FASTEST LAP'
+        : 'LAP ${data.selectedLap}';
+
     return Row(
       children: [
         Container(
@@ -290,44 +423,57 @@ class _StatsRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                data.team,
-                style: GoogleFonts.barlow(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                '${data.metricLabel} · ${data.session} · ${data.year}',
-                style: GoogleFonts.barlow(
-                    fontSize: 12, color: AppColors.textMuted),
-              ),
+              Text(data.team,
+                  style: GoogleFonts.barlow(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500)),
+              Text('${data.metricLabel} · ${data.session} · ${data.year}',
+                  style: GoogleFonts.barlow(
+                      fontSize: 12, color: AppColors.textMuted)),
             ],
           ),
         ),
         if (data.fastestLap != null)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'FASTEST LAP',
-                style: GoogleFonts.barlow(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: AppColors.textSecondary,
-                ),
+          GestureDetector(
+            onTap: onLapTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: onLapTap != null
+                  ? BoxDecoration(
+                      border: Border.all(color: AppColors.primaryBorder),
+                      borderRadius: BorderRadius.circular(8),
+                    )
+                  : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(lapLabel,
+                          style: GoogleFonts.barlow(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                              color: AppColors.textSecondary)),
+                      if (onLapTap != null) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_down,
+                            size: 14, color: AppColors.textSecondary),
+                      ],
+                    ],
+                  ),
+                  Text(
+                    _formatLapTime(data.fastestLap!),
+                    style: GoogleFonts.barlowCondensed(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.success),
+                  ),
+                ],
               ),
-              Text(
-                _formatLapTime(data.fastestLap!),
-                style: GoogleFonts.barlowCondensed(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.success,
-                ),
-              ),
-            ],
+            ),
           ),
       ],
     );
@@ -336,22 +482,17 @@ class _StatsRow extends StatelessWidget {
   String _formatLapTime(double seconds) {
     final mins = (seconds ~/ 60);
     final secs = seconds % 60;
-    if (mins > 0) {
-      return '$mins:${secs.toStringAsFixed(3).padLeft(6, '0')}';
-    }
+    if (mins > 0) return '$mins:${secs.toStringAsFixed(3).padLeft(6, '0')}';
     return secs.toStringAsFixed(3);
   }
 }
 
-// ── Scrollable Telemetry Graph ────────────────────────────────────────────────
-// Fixed Y-axis on left, chart scrolls horizontally
+// ── Scrollable Graph ──────────────────────────────────────────────────────────
 
 class _TelemetryGraph extends StatelessWidget {
   final TelemetryData data;
-
   const _TelemetryGraph({required this.data});
 
-  // Layout constants
   static const double _yAxisWidth = 52.0;
   static const double _graphHeight = 260.0;
   static const double _xAxisHeight = 28.0;
@@ -363,44 +504,35 @@ class _TelemetryGraph extends StatelessWidget {
           message: 'Data not available for selected parameters');
     }
 
-    final isLapBased =
-        data.metric == 'lap_time' || data.metric == 'top_speed';
+    final isLapBased = data.metric == 'lap_time' || data.metric == 'top_speed';
     final spots = data.data.map((dp) => FlSpot(dp.x, dp.y)).toList();
-
     final minY = data.data.map((d) => d.y).reduce((a, b) => a < b ? a : b);
     final maxY = data.data.map((d) => d.y).reduce((a, b) => a > b ? a : b);
     final yRange = maxY - minY;
     final yPadding = yRange < 10 ? 5.0 : yRange * 0.12;
-    final effectiveMinY = (minY - yPadding).clamp(0, double.infinity);
+    final effectiveMinY = (minY - yPadding).clamp(0.0, double.infinity);
     final effectiveMaxY = maxY + yPadding;
-
     final teamColor = AppColors.teamColor(data.team);
+    final screenW = MediaQuery.of(context).size.width;
 
-    // Chart width — wider = more detail when scrolling
     final chartWidth = isLapBased
-        ? (data.data.length * 20.0).clamp(400.0, 4000.0)
-        : (MediaQuery.of(context).size.width * 2.5).clamp(600.0, 4000.0);
+        ? (data.data.length * 22.0).clamp(500.0, 4000.0)
+        : (screenW * 3.0).clamp(800.0, 6000.0);
 
-    // X-axis interval
     final xInterval = isLapBased
-        ? (data.data.length / 10).roundToDouble().clamp(1, 10)
-        : (data.data.last.x / 10).roundToDouble().clamp(5, 200);
+        ? (data.data.length / 8).roundToDouble().clamp(1.0, 10.0)
+        : (data.data.last.x / 10).roundToDouble().clamp(100.0, 1000.0);
 
     final chartData = LineChartData(
       gridData: FlGridData(
         show: true,
         drawVerticalLine: true,
-        getDrawingHorizontalLine: (_) => const FlLine(
-          color: Color(0xFF2A2A2A),
-          strokeWidth: 1,
-        ),
-        getDrawingVerticalLine: (_) => const FlLine(
-          color: Color(0xFF222222),
-          strokeWidth: 0.5,
-        ),
+        getDrawingHorizontalLine: (_) =>
+            const FlLine(color: Color(0xFF252525), strokeWidth: 1),
+        getDrawingVerticalLine: (_) =>
+            const FlLine(color: Color(0xFF1E1E1E), strokeWidth: 0.5),
       ),
       titlesData: FlTitlesData(
-        // Y-axis rendered separately as fixed widget — hidden here
         leftTitles:
             const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         rightTitles:
@@ -411,39 +543,33 @@ class _TelemetryGraph extends StatelessWidget {
           sideTitles: SideTitles(
             showTitles: true,
             reservedSize: _xAxisHeight,
-            interval: xInterval.toDouble(),
+            interval: xInterval,
             getTitlesWidget: (v, meta) {
               final label = isLapBased ? 'L${v.toInt()}' : '${v.toInt()}m';
               return SideTitleWidget(
-                axisSide: AxisSide.bottom,
-                child: Text(
-                  label,
-                  style: GoogleFonts.barlow(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                axisSide: meta.axisSide,
+                child: Text(label,
+                    style: GoogleFonts.barlow(
+                        fontSize: 10,
+                        color: const Color(0xFF999999),
+                        fontWeight: FontWeight.w500)),
               );
             },
           ),
         ),
       ),
       borderData: FlBorderData(show: false),
-      minY: effectiveMinY.toDouble(),
+      minY: effectiveMinY,
       maxY: effectiveMaxY,
       lineTouchData: LineTouchData(
         touchTooltipData: LineTouchTooltipData(
-          tooltipBorder:
-              const BorderSide(color: AppColors.primaryBorder),
-          getTooltipItems: (touchedSpots) => touchedSpots
+          getTooltipItems: (spots) => spots
               .map((s) => LineTooltipItem(
                     '${_valueLabel(s.y)} ${data.metricUnit}',
                     GoogleFonts.barlow(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
                   ))
               .toList(),
         ),
@@ -451,16 +577,15 @@ class _TelemetryGraph extends StatelessWidget {
       lineBarsData: [
         LineChartBarData(
           spots: spots,
-          isCurved: data.metric != 'brake',
-          isStepLineChart: false,
-          curveSmoothness: data.metric == 'brake' ? 0.0 : 0.15,
+          isCurved: true,
+          curveSmoothness: 0.15,
           color: teamColor,
           barWidth: isLapBased ? 2.5 : 1.8,
           isStrokeCapRound: true,
           dotData: FlDotData(
             show: isLapBased,
             getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
-              radius: 3,
+              radius: 3.5,
               color: teamColor,
               strokeWidth: 1.5,
               strokeColor: Colors.white,
@@ -472,8 +597,8 @@ class _TelemetryGraph extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                teamColor.withValues(alpha: 0.18),
-                teamColor.withValues(alpha: 0.02),
+                teamColor.withValues(alpha: 0.20),
+                teamColor.withValues(alpha: 0.03),
               ],
             ),
           ),
@@ -493,29 +618,27 @@ class _TelemetryGraph extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Fixed Y-axis — never scrolls ──────────────────────────────
+            // Fixed Y-axis
             Container(
               width: _yAxisWidth,
               decoration: const BoxDecoration(
                 color: AppColors.surface,
                 border: Border(
-                  right: BorderSide(color: AppColors.cardBorder, width: 1),
-                ),
+                    right: BorderSide(color: AppColors.cardBorder, width: 1)),
               ),
               child: Padding(
-                padding: const EdgeInsets.only(
-                    top: 8, bottom: _xAxisHeight + 4),
+                padding:
+                    const EdgeInsets.only(top: 8, bottom: _xAxisHeight + 4),
                 child: CustomPaint(
                   painter: _YAxisPainter(
-                    minY: effectiveMinY.toDouble(),
+                    minY: effectiveMinY,
                     maxY: effectiveMaxY,
                     metric: data.metric,
                   ),
                 ),
               ),
             ),
-
-            // ── Scrollable chart ───────────────────────────────────────────
+            // Scrollable chart
             Expanded(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -524,11 +647,9 @@ class _TelemetryGraph extends StatelessWidget {
                   width: chartWidth,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(4, 8, 12, 0),
-                    child: LineChart(
-                      chartData,
-                      duration: const Duration(milliseconds: 350),
-                      curve: Curves.easeInOut,
-                    ),
+                    child: LineChart(chartData,
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeInOut),
                   ),
                 ),
               ),
@@ -551,55 +672,37 @@ class _TelemetryGraph extends StatelessWidget {
   }
 }
 
-// ── Fixed Y-axis painter ──────────────────────────────────────────────────────
+// ── Y-axis painter ────────────────────────────────────────────────────────────
 
 class _YAxisPainter extends CustomPainter {
   final double minY;
   final double maxY;
   final String metric;
 
-  const _YAxisPainter({
-    required this.minY,
-    required this.maxY,
-    required this.metric,
-  });
+  const _YAxisPainter(
+      {required this.minY, required this.maxY, required this.metric});
 
   @override
   void paint(Canvas canvas, Size size) {
     const textStyle = TextStyle(
-      color: Color(0xFFAAAAAA), // clearly readable on dark bg
+      color: Color(0xFFAAAAAA),
       fontSize: 10,
       fontFamily: 'Barlow',
       fontWeight: FontWeight.w500,
     );
-
     const labelCount = 5;
     for (int i = 0; i <= labelCount; i++) {
       final fraction = i / labelCount;
       final value = maxY - (maxY - minY) * fraction;
       final y = size.height * fraction;
-
-      final label = _formatValue(value);
       final tp = TextPainter(
-        text: TextSpan(text: label, style: textStyle),
+        text: TextSpan(text: _formatValue(value), style: textStyle),
         textDirection: TextDirection.ltr,
-        textAlign: TextAlign.right,
       )..layout(maxWidth: size.width - 6);
-
-      tp.paint(
-        canvas,
-        Offset(size.width - tp.width - 4, y - tp.height / 2),
-      );
-
-      // Draw small tick mark
-      final tickPaint = Paint()
-        ..color = const Color(0xFF3A3A3A)
-        ..strokeWidth = 1;
+      tp.paint(canvas, Offset(size.width - tp.width - 4, y - tp.height / 2));
+      final tick = Paint()..color = const Color(0xFF3A3A3A)..strokeWidth = 1;
       canvas.drawLine(
-        Offset(size.width - 2, y),
-        Offset(size.width, y),
-        tickPaint,
-      );
+          Offset(size.width - 2, y), Offset(size.width, y), tick);
     }
   }
 
@@ -618,8 +721,7 @@ class _YAxisPainter extends CustomPainter {
       old.minY != minY || old.maxY != maxY || old.metric != metric;
 }
 
-// ── AI Insight Summary Card ────────────────────────────────────────────────────
-// Core differentiator — ALWAYS present, NEVER remove
+// ── AI Insight Summary Card ───────────────────────────────────────────────────
 
 class _InsightSummaryCard extends StatelessWidget {
   final String summary;
@@ -646,50 +748,37 @@ class _InsightSummaryCard extends StatelessWidget {
                 width: 6,
                 height: 6,
                 decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
+                    color: AppColors.primary, shape: BoxShape.circle),
               ),
               const SizedBox(width: 8),
-              Text(
-                'AI INSIGHT',
-                style: GoogleFonts.barlow(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                  color: AppColors.primary,
-                ),
-              ),
+              Text('AI INSIGHT',
+                  style: GoogleFonts.barlow(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                      color: AppColors.primary)),
               if (partial) ...[
                 const Spacer(),
-                Text(
-                  'PARTIAL DATA',
-                  style: GoogleFonts.barlow(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                    color: AppColors.warning,
-                  ),
-                ),
+                Text('PARTIAL DATA',
+                    style: GoogleFonts.barlow(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                        color: AppColors.warning)),
               ],
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            summary,
-            style: GoogleFonts.barlow(
-              fontSize: 14,
-              color: AppColors.textPrimary,
-              height: 1.5,
-            ),
-          ),
+          Text(summary,
+              style: GoogleFonts.barlow(
+                  fontSize: 14, color: AppColors.textPrimary, height: 1.5)),
         ],
       ),
     );
   }
 }
 
-// ── Empty state ────────────────────────────────────────────────────────────────
+// ── Empty / Error states ──────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   final String message;
@@ -706,24 +795,19 @@ class _EmptyState extends StatelessWidget {
           const Icon(Icons.bar_chart_outlined,
               color: AppColors.textMuted, size: 48),
           const SizedBox(height: 20),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.barlow(
-                color: AppColors.textSecondary, fontSize: 15),
-          ),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.barlow(
+                  color: AppColors.textSecondary, fontSize: 15)),
         ],
       ),
     );
   }
 }
 
-// ── Error state ────────────────────────────────────────────────────────────────
-
 class _ErrorState extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-
   const _ErrorState({required this.message, required this.onRetry});
 
   @override
@@ -737,12 +821,10 @@ class _ErrorState extends StatelessWidget {
           const Icon(Icons.wifi_off_outlined,
               color: AppColors.textMuted, size: 48),
           const SizedBox(height: 20),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.barlow(
-                color: AppColors.textSecondary, fontSize: 15),
-          ),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.barlow(
+                  color: AppColors.textSecondary, fontSize: 15)),
           const SizedBox(height: 24),
           GestureDetector(
             onTap: onRetry,
@@ -753,15 +835,12 @@ class _ErrorState extends StatelessWidget {
                 border: Border.all(color: AppColors.primaryBorder),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                'TAP TO RETRY',
-                style: GoogleFonts.barlow(
-                  color: AppColors.primary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
-              ),
+              child: Text('TAP TO RETRY',
+                  style: GoogleFonts.barlow(
+                      color: AppColors.primary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2)),
             ),
           ),
         ],

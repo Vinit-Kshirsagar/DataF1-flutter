@@ -12,9 +12,9 @@ class DioClient {
   DioClient._internal() {
     dio = Dio(
       BaseOptions(
-       baseUrl: 'http://192.168.1.6:8000',
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
+       baseUrl: 'https://dataf1-backend.onrender.com',
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 120),
         headers: {'Content-Type': 'application/json'},
       ),
     );
